@@ -63,6 +63,11 @@
                                 :key="element.name"
                             >
                                 <div class="row">
+                                    <div class="col-1">
+                                        <button class="btn btn-sm" @click="$target => add(index)">
+                                            <i class="bi-plus browser-icons" />
+                                        </button>
+                                    </div>
                                     <div class="col-1 browser-icons-col">
                                         <i
                                             v-if="mediaType(element.name) === 'audio'"
@@ -930,6 +935,30 @@ function cloneClip(event: any) {
         in: 0,
         out: mediaStore.folderTree.files[o].duration,
         duration: mediaStore.folderTree.files[o].duration,
+    })
+
+    playlistStore.playlist = processPlaylist(
+        configStore.startInSec,
+        configStore.playlistLength,
+        playlistStore.playlist,
+        false
+    )
+}
+
+function add(oldIndex: number) {
+    const storagePath = configStore.configPlayout.storage.path
+    const sourcePath = `${storagePath}/${mediaStore.folderTree.source}/${mediaStore.folderTree.files[oldIndex].name}`.replace(
+        /\/[/]+/g,
+        '/'
+    )
+
+    playlistStore.playlist.splice(playlistStore.playlist.length, 0, {
+        uid: genUID(),
+        begin: 0,
+        source: sourcePath,
+        in: 0,
+        out: mediaStore.folderTree.files[oldIndex].duration,
+        duration: mediaStore.folderTree.files[oldIndex].duration,
     })
 
     playlistStore.playlist = processPlaylist(
