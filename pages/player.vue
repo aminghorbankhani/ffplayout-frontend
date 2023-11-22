@@ -159,7 +159,7 @@
                                             <input
                                                 class="form-check-input"
                                                 type="checkbox"
-                                                :checked="selectedPlaylists[element.uid] || false"
+                                                :checked="selectedPlaylists[index] || false"
                                                 @change="select($event, element, index)"
                                             />
                                         </div>
@@ -927,15 +927,14 @@ function closePlayer() {
 }
 
 function sortableSelect(event: any) {
-    console.log('eeeee', event);
     let currentIndex: number | undefined;
     for (let i = 0; i < event.from.children.length; i++) {
         if (event.from.children[i] === event.item) {
             currentIndex = i;
         }
     }
-    if (currentIndex) {
-        selectedPlaylists.value[playlistStore.playlist[currentIndex].uid] = true;
+    if (currentIndex !== undefined) {
+        selectedPlaylists.value[currentIndex] = true;
     }
 }
 
@@ -946,19 +945,19 @@ function sortableDeselect(event: any) {
             currentIndex = i;
         }
     }
-    if (currentIndex && selectedPlaylists.value[playlistStore.playlist[currentIndex].uid]) {
-        delete selectedPlaylists.value[playlistStore.playlist[currentIndex].uid];
+    if (currentIndex !== undefined && selectedPlaylists.value[playlistStore.playlist[currentIndex].uid]) {
+        delete selectedPlaylists.value[currentIndex];
     }
 }
 
 function select(event: any, item: PlaylistItem, index: number) {
     if (event.target.checked) {
-        selectedPlaylists.value[item.uid] = true;
+        selectedPlaylists.value[index] = true;
         if (rootPlaylist.value?.containerRef) {
             $sortableInstance.utils.select(rootPlaylist.value.containerRef.children[index]);
         }
-    } else if (selectedPlaylists.value[item.uid]) {
-        delete selectedPlaylists.value[item.uid];
+    } else if (selectedPlaylists.value[index]) {
+        delete selectedPlaylists.value[index];
         if (rootPlaylist.value?.containerRef) {
             $sortableInstance.utils.deselect(rootPlaylist.value.containerRef.children[index]);
         }
@@ -1221,12 +1220,19 @@ function loopClips() {
 
 function cloneSelectedItems() {
     const temp: PlaylistItem[] = [];
+    const uidList: Record<string, boolean> = {};
+    for (const index of Object.keys(selectedPlaylists.value)) {
+        const uid = playlistStore.playlist[+index].uid;
+        uidList[uid] = true;
+    }
     playlistStore.playlist.map(item => {
-        if (selectedPlaylists.value[item.uid]) {
-            delete selectedPlaylists.value[item.uid];
+        if (uidList[item.uid]) {
+            delete uidList[item.uid];
             temp.push($_.cloneDeep(item));
         }
     })
+
+    selectedPlaylists.value = {};
 
     playlistStore.playlist = processPlaylist(
         configStore.startInSec,
