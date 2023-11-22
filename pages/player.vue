@@ -55,7 +55,7 @@
                             </div>
                         </div>
                     </li>
-                    <Sortable :list="mediaStore.folderTree.files" :options="browserSortOptions" item-key="name">
+                    <SortableComponent :list="mediaStore.folderTree.files" :options="browserSortOptions" item-key="name">
                         <template #item="{ element, index }">
                             <li
                                 :id="`file_${index}`"
@@ -63,9 +63,9 @@
                                 :key="element.name"
                             >
                                 <div class="row">
-                                    <div class="col-1">
+                                    <div class="col-2">
                                         <button class="btn btn-sm" @click="$target => add(index)">
-                                            <i class="bi-plus browser-icons" />
+                                            <i class="bi-plus-square-fill browser-icons" />
                                         </button>
                                     </div>
                                     <div class="col-1 browser-icons-col">
@@ -103,7 +103,7 @@
                                 </div>
                             </li>
                         </template>
-                    </Sortable>
+                    </SortableComponent>
                 </ul>
             </pane>
             <pane class="playlist-pane">
@@ -111,6 +111,7 @@
                     <ul class="list-group list-group-header">
                         <li class="list-group-item">
                             <div class="row playlist-row">
+                                <div class="col-1">Select</div>
                                 <div class="col-1 timecode">Start</div>
                                 <div class="col">File</div>
                                 <div class="col-1 text-center playlist-input">Play</div>
@@ -127,7 +128,8 @@
                         <div class="spinner-border" role="status" />
                     </div>
                     <div id="scroll-container">
-                        <Sortable
+                        <SortableComponent
+                            ref="rootPlaylist"
                             :list="playlistStore.playlist"
                             item-key="uid"
                             class="list-group playlist-list-group"
@@ -138,6 +140,8 @@
                             :options="playlistSortOptions"
                             @add="cloneClip"
                             @end="moveItemInArray"
+                            @select="sortableSelect"
+                            @deselect="sortableDeselect"
                         >
                             <template #item="{ element, index }">
                                 <li
@@ -151,6 +155,14 @@
                                     :key="element.uid"
                                 >
                                     <div class="row playlist-row">
+                                        <div class="col-1 text-center playlist-input mobile-hidden">
+                                            <input
+                                                class="form-check-input"
+                                                type="checkbox"
+                                                :checked="selectedPlaylists[element.uid] || false"
+                                                @change="select($event, element, index)"
+                                            />
+                                        </div>
                                         <div class="col-1 timecode">{{ secondsToTime(element.begin) }}</div>
                                         <div class="col grabbing filename">{{ filename(element.source) }}</div>
                                         <div class="col-1 text-center playlist-input">
@@ -198,13 +210,23 @@
                                     </div>
                                 </li>
                             </template>
-                        </Sortable>
+                        </SortableComponent>
                     </div>
                 </div>
             </pane>
         </splitpanes>
 
         <div class="btn-group media-button mb-3">
+            <div
+                v-if="Object.keys(selectedPlaylists).length > 0"
+                class="btn btn-primary"
+                title="Clone selected items"
+                data-tooltip="tooltip"
+                @click="cloneSelectedItems()"
+                disabled
+            >
+                <i class="bi-front" />
+            </div>
             <div
                 class="btn btn-primary"
                 title="Copy Playlist"
@@ -784,7 +806,9 @@ import { useIndex } from '~/stores/index'
 import { useMedia } from '~/stores/media'
 import { usePlaylist } from '~/stores/playlist'
 
-const { $_, $dayjs } = useNuxtApp()
+const rootPlaylist = ref<{containerRef: HTMLDivElement} | null>(null);
+
+const { $sortableInstance, $_, $dayjs } = useNuxtApp()
 const { secToHMS, filename, secondsToTime, toMin, mediaType } = stringFormatter()
 const { processPlaylist, genUID } = playlistOperations()
 const contentType = { 'content-type': 'application/json;charset=UTF-8' }
@@ -820,6 +844,7 @@ const previewOpt = ref()
 const isVideo = ref(false)
 const selectedFolders = ref([] as string[])
 const generateFromAll = ref(false)
+const selectedPlaylists = ref({} as Record<string, boolean>);
 const browserSortOptions = {
     group: { name: 'playlist', pull: 'clone', put: false },
     sort: false,
@@ -828,6 +853,8 @@ const playlistSortOptions = {
     group: 'playlist',
     animation: 100,
     handle: '.grabbing',
+    multiDrag: true,
+    selectedClass: "selected",
 }
 const templateBrowserSortOptions = {
     group: { name: 'folder', pull: 'clone', put: false },
@@ -899,6 +926,45 @@ function closePlayer() {
     isVideo.value = false
 }
 
+function sortableSelect(event: any) {
+    console.log('eeeee', event);
+    let currentIndex: number | undefined;
+    for (let i = 0; i < event.from.children.length; i++) {
+        if (event.from.children[i] === event.item) {
+            currentIndex = i;
+        }
+    }
+    if (currentIndex) {
+        selectedPlaylists.value[playlistStore.playlist[currentIndex].uid] = true;
+    }
+}
+
+function sortableDeselect(event: any) {
+    let currentIndex: number | undefined;
+    for (let i = 0; i < event.from.children.length; i++) {
+        if (event.from.children[i] === event.item) {
+            currentIndex = i;
+        }
+    }
+    if (currentIndex && selectedPlaylists.value[playlistStore.playlist[currentIndex].uid]) {
+        delete selectedPlaylists.value[playlistStore.playlist[currentIndex].uid];
+    }
+}
+
+function select(event: any, item: PlaylistItem, index: number) {
+    if (event.target.checked) {
+        selectedPlaylists.value[item.uid] = true;
+        if (rootPlaylist.value?.containerRef) {
+            $sortableInstance.utils.select(rootPlaylist.value.containerRef.children[index]);
+        }
+    } else if (selectedPlaylists.value[item.uid]) {
+        delete selectedPlaylists.value[item.uid];
+        if (rootPlaylist.value?.containerRef) {
+            $sortableInstance.utils.deselect(rootPlaylist.value.containerRef.children[index]);
+        }
+    }
+}
+
 function setCategory(event: any, item: PlaylistItem) {
     if (event.target.checked) {
         item.category = 'advertisement'
@@ -906,6 +972,7 @@ function setCategory(event: any, item: PlaylistItem) {
         item.category = ''
     }
 }
+
 function onFileChange(evt: any) {
     const files = evt.target.files || evt.dataTransfer.files
 
@@ -991,14 +1058,29 @@ function removeTemplate(item: TemplateItem) {
 }
 
 function moveItemInArray(event: any) {
-    playlistStore.playlist.splice(event.newIndex, 0, playlistStore.playlist.splice(event.oldIndex, 1)[0])
+    if (event.newIndicies.length) {
+        for (let i = 0; i < event.newIndicies.length; i++) {
+            const oldIndex = event.oldIndicies[i].index;
+            const newIndex = event.newIndicies[i].index;
+            [playlistStore.playlist[newIndex], playlistStore.playlist[oldIndex]] = [playlistStore.playlist[oldIndex], playlistStore.playlist[newIndex]] 
+        }
 
-    playlistStore.playlist = processPlaylist(
-        configStore.startInSec,
-        configStore.playlistLength,
-        playlistStore.playlist,
-        false
-    )
+        playlistStore.playlist = processPlaylist(
+            configStore.startInSec,
+            configStore.playlistLength,
+            playlistStore.playlist,
+            false
+        )
+    } else {
+        playlistStore.playlist.splice(event.newIndex, 0, playlistStore.playlist.splice(event.oldIndex, 1)[0])
+
+        playlistStore.playlist = processPlaylist(
+            configStore.startInSec,
+            configStore.playlistLength,
+            playlistStore.playlist,
+            false
+        )
+    }
 }
 
 function setPreviewData(path: string) {
@@ -1135,6 +1217,23 @@ function loopClips() {
     }
 
     playlistStore.playlist = processPlaylist(configStore.startInSec, configStore.playlistLength, tempList, false)
+}
+
+function cloneSelectedItems() {
+    const temp: PlaylistItem[] = [];
+    playlistStore.playlist.map(item => {
+        if (selectedPlaylists.value[item.uid]) {
+            delete selectedPlaylists.value[item.uid];
+            temp.push($_.cloneDeep(item));
+        }
+    })
+
+    playlistStore.playlist = processPlaylist(
+        configStore.startInSec,
+        configStore.playlistLength,
+        [...playlistStore.playlist, ...temp],
+        false
+    )
 }
 
 async function onSubmitImport(evt: any) {
