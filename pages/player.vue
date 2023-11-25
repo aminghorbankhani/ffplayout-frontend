@@ -1062,10 +1062,16 @@ function moveItemInArray(event: any) {
         for (let i = oldIndices.length - 1; i >= 0; i--) {
             playlistStore.playlist.splice(oldIndices[i], 1);
         }
-        for (let i = 0; i < oldIndices.length; i++) {
-            playlistStore.playlist.splice(newIndices[i], 0, arrCopy[oldIndices[i]]);
-            selectedPlaylists.value[newIndices[i]] = true;
-        }
+        event.items.map((item) => {
+            $sortableInstance.utils.deselect(item);
+            item.remove();
+        })
+        setTimeout(() => {
+            for (let i = 0; i < oldIndices.length; i++) {
+                playlistStore.playlist.splice(newIndices[i], 0, arrCopy[oldIndices[i]]);
+                selectedPlaylists.value[newIndices[i]] = true;
+            }
+        })
 
         playlistStore.playlist = processPlaylist(
             configStore.startInSec,
@@ -1223,7 +1229,9 @@ function loopClips() {
 
 function cloneSelectedItems() {
     Object.keys(selectedPlaylists.value).map((item) => {
-        playlistStore.playlist.push($_.cloneDeep(playlistStore.playlist[+item]));
+        if (playlistStore.playlist[+item]) {
+            playlistStore.playlist.push($_.cloneDeep(playlistStore.playlist[+item]));
+        }
     })
 
     for (const index of Object.keys(selectedPlaylists.value)) {
