@@ -36,7 +36,7 @@
                                     </div>
                                 </div>
                                 <div class="col time-col counter-col">
-                                    <div class="time-str">
+                                    <div class="time-str" :class="{ warning: playlistStore.remainingSec <= 10 }">
                                         {{ secToHMS(playlistStore.remainingSec >= 0 ? playlistStore.remainingSec : 0) }}
                                     </div>
                                 </div>
@@ -398,6 +398,10 @@ async function controlPlayout(state: string) {
     font-size: 4.5em;
     letter-spacing: -0.18em;
     padding-right: 14px;
+
+    &.warning {
+        color: #d1c410;
+    }
 }
 
 .current-clip {

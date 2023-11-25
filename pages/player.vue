@@ -855,6 +855,8 @@ const playlistSortOptions = {
     handle: '.grabbing',
     multiDrag: true,
     selectedClass: "selected",
+    avoidImplicitDeselect: true,
+    sort: true,
 }
 const templateBrowserSortOptions = {
     group: { name: 'folder', pull: 'clone', put: false },
@@ -927,39 +929,32 @@ function closePlayer() {
 }
 
 function sortableSelect(event: any) {
-    let currentIndex: number | undefined;
-    for (let i = 0; i < event.from.children.length; i++) {
-        if (event.from.children[i] === event.item) {
-            currentIndex = i;
-        }
-    }
-    if (currentIndex !== undefined) {
-        selectedPlaylists.value[currentIndex] = true;
-    }
+    const newIndices = event.newIndicies.map((item: any) => item.index);
+    newIndices.map((item: number) => {
+        selectedPlaylists.value[item] = true;
+    })
 }
 
 function sortableDeselect(event: any) {
-    let currentIndex: number | undefined;
-    for (let i = 0; i < event.from.children.length; i++) {
-        if (event.from.children[i] === event.item) {
-            currentIndex = i;
-        }
-    }
-    if (currentIndex !== undefined && selectedPlaylists.value[playlistStore.playlist[currentIndex].uid]) {
-        delete selectedPlaylists.value[currentIndex];
-    }
+    const newIndices = event.newIndicies.map((item: any) => item.index);
+    selectedPlaylists.value = {};
+    newIndices.map((item: number) => {
+        selectedPlaylists.value[item] = true;
+    })
 }
 
 function select(event: any, item: PlaylistItem, index: number) {
     if (event.target.checked) {
         selectedPlaylists.value[index] = true;
-        if (rootPlaylist.value?.containerRef) {
-            $sortableInstance.utils.select(rootPlaylist.value.containerRef.children[index]);
+        const children = rootPlaylist.value?.containerRef.children;
+        if (children && children[+index]) {
+            $sortableInstance.utils.select(children[+index]);
         }
     } else if (selectedPlaylists.value[index]) {
         delete selectedPlaylists.value[index];
-        if (rootPlaylist.value?.containerRef) {
-            $sortableInstance.utils.deselect(rootPlaylist.value.containerRef.children[index]);
+        const children = rootPlaylist.value?.containerRef.children;
+        if (children && children[+index]) {
+            $sortableInstance.utils.deselect(children[+index]);
         }
     }
 }
@@ -1058,10 +1053,18 @@ function removeTemplate(item: TemplateItem) {
 
 function moveItemInArray(event: any) {
     if (event.newIndicies.length) {
-        for (let i = 0; i < event.newIndicies.length; i++) {
-            const oldIndex = event.oldIndicies[i].index;
-            const newIndex = event.newIndicies[i].index;
-            [playlistStore.playlist[newIndex], playlistStore.playlist[oldIndex]] = [playlistStore.playlist[oldIndex], playlistStore.playlist[newIndex]] 
+        const oldIndices = event.oldIndicies.map((item: any) => item.index);
+        const newIndices = event.newIndicies.map((item: any) => item.index);
+
+        selectedPlaylists.value = {};
+
+        let arrCopy = [...playlistStore.playlist];
+        for (let i = oldIndices.length - 1; i >= 0; i--) {
+            playlistStore.playlist.splice(oldIndices[i], 1);
+        }
+        for (let i = 0; i < oldIndices.length; i++) {
+            playlistStore.playlist.splice(newIndices[i], 0, arrCopy[oldIndices[i]]);
+            selectedPlaylists.value[newIndices[i]] = true;
         }
 
         playlistStore.playlist = processPlaylist(
@@ -1219,25 +1222,22 @@ function loopClips() {
 }
 
 function cloneSelectedItems() {
-    const temp: PlaylistItem[] = [];
-    const uidList: Record<string, boolean> = {};
-    for (const index of Object.keys(selectedPlaylists.value)) {
-        const uid = playlistStore.playlist[+index].uid;
-        uidList[uid] = true;
-    }
-    playlistStore.playlist.map(item => {
-        if (uidList[item.uid]) {
-            delete uidList[item.uid];
-            temp.push($_.cloneDeep(item));
-        }
+    Object.keys(selectedPlaylists.value).map((item) => {
+        playlistStore.playlist.push($_.cloneDeep(playlistStore.playlist[+item]));
     })
 
+    for (const index of Object.keys(selectedPlaylists.value)) {
+        const children = rootPlaylist.value?.containerRef.children;
+        if (children && children[+index]) {
+            $sortableInstance.utils.deselect(children[+index]);
+        }
+    }
     selectedPlaylists.value = {};
 
     playlistStore.playlist = processPlaylist(
         configStore.startInSec,
         configStore.playlistLength,
-        [...playlistStore.playlist, ...temp],
+        playlistStore.playlist,
         false
     )
 }
